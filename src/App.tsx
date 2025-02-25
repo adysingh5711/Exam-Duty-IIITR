@@ -8,10 +8,14 @@ function App() {
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [faculty, setFaculty] = useState<Person[]>([]);
   const [staff, setStaff] = useState<Person[]>([]);
+  const [isGenerated, setIsGenerated] = useState<boolean>(false);
+  const [fileName, setFileName] = useState<string | null>(null);
 
   const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    setFileName(file.name);
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -36,11 +40,16 @@ function App() {
       setStaff(newStaff);
       const generatedSchedule = generateSchedule(newFaculty, newStaff);
       setSchedule(generatedSchedule);
+      setIsGenerated(true);
     };
     reader.readAsArrayBuffer(file);
   }, []);
 
   const regenerateSchedule = useCallback(() => {
+    if (faculty.length === 0 || staff.length === 0) {
+      alert('Please upload a file first!');
+      return;
+    }
     const generatedSchedule = generateSchedule(faculty, staff);
     setSchedule(generatedSchedule);
   }, [faculty, staff]);
@@ -77,6 +86,10 @@ function App() {
     XLSX.writeFile(wb, 'examination-schedule.xlsx');
   }, [schedule]);
 
+  console.log('Faculty:', faculty);
+  console.log('Staff:', staff);
+  console.log('Schedule:', schedule);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8">
       <div className="max-w-6xl mx-auto">
@@ -85,16 +98,48 @@ function App() {
             Examination Duty Schedule Generator
           </h1>
 
-          <div className="mb-8">
+          <div className="mb-8 relative">
             <label
               className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-xl cursor-pointer bg-gray-50/50 hover:bg-gray-50 transition-all duration-300 border-gray-300/50 hover:border-blue-400/50"
             >
+              {fileName && (
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setFileName(null);
+                    setFaculty([]);
+                    setStaff([]);
+                    setSchedule(null);
+                    setIsGenerated(false);
+                  }}
+                  className="absolute -right-2 -top-2 p-2 bg-red-400 rounded-full hover:bg-red-500 transition-colors"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 text-white"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </button>
+              )}
               <div className="flex flex-col items-center justify-center pt-5 pb-6">
                 <FileUp className="w-12 h-12 mb-4 text-blue-500" />
-                <p className="mb-2 text-sm text-gray-500">
-                  <span className="font-semibold">Click to upload</span> or drag and drop
-                </p>
-                <p className="text-xs text-gray-400">Excel file with Faculty and Staff columns</p>
+                {fileName ? (
+                  <p className="text-sm text-gray-500 font-medium">{fileName}</p>
+                ) : (
+                  <>
+                    <p className="mb-2 text-sm text-gray-500">
+                      <span className="font-semibold">Click to upload</span> or <span className="font-semibold">drop file here</span>
+                    </p>
+                    <p className="text-xs text-gray-400">Excel file with Faculty and Staff columns</p>
+                  </>
+                )}
               </div>
               <input
                 type="file"
@@ -105,19 +150,26 @@ function App() {
             </label>
           </div>
 
+          <div className="flex justify-center mb-8">
+            <button
+              onClick={isGenerated ? regenerateSchedule : () => {
+                const generatedSchedule = generateSchedule(faculty, staff);
+                setSchedule(generatedSchedule);
+                setIsGenerated(true);
+              }}
+              className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+            >
+              <RefreshCw className="w-5 h-5" />
+              {isGenerated ? 'Regenerate Schedule' : 'Generate Schedule'}
+            </button>
+          </div>
+
           {schedule && (
             <div className="space-y-8">
               <div className="overflow-hidden bg-white rounded-xl border border-gray-200">
                 <div className="p-6 flex justify-between items-center border-b border-gray-200">
                   <h2 className="text-xl font-semibold text-gray-800">Generated Schedule</h2>
                   <div className="flex gap-3">
-                    <button
-                      onClick={regenerateSchedule}
-                      className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                      Regenerate
-                    </button>
                     <button
                       onClick={downloadSchedule}
                       className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
