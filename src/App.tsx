@@ -48,14 +48,6 @@ function App() {
     reader.readAsArrayBuffer(file);
   }, []);
 
-  const regenerateSchedule = useCallback(() => {
-    if (faculty.length === 0 || staff.length === 0) {
-      alert('Please upload a file first!');
-      return;
-    }
-    const generatedSchedule = generateSchedule(faculty, staff);
-    setSchedule(generatedSchedule);
-  }, [faculty, staff]);
 
   const downloadSchedule = useCallback(() => {
     if (!schedule) return;
@@ -275,8 +267,8 @@ function App() {
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Day</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Faculty</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Staff</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Person 1</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Person 2</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
