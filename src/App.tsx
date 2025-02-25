@@ -3,6 +3,7 @@ import { FileUp, Download, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Person, Schedule } from './types';
 import { generateSchedule } from './utils/scheduleGenerator';
+import ScheduleDisplay from './ScheduleDisplay';
 
 function App() {
   const [schedule, setSchedule] = useState<Schedule | null>(null);
@@ -163,6 +164,12 @@ function App() {
     XLSX.writeFile(wb, 'examination-schedule.xlsx');
   }, [schedule]);
 
+  const generateAndSetSchedule = useCallback(() => {
+    const generatedSchedule = generateSchedule(faculty, staff);
+    setSchedule(generatedSchedule);
+    setIsGenerated(true);
+  }, [faculty, staff]);
+
   console.log('Faculty:', faculty);
   console.log('Staff:', staff);
   console.log('Schedule:', schedule);
@@ -246,75 +253,7 @@ function App() {
           </div>
 
           {schedule && (
-            <div className="space-y-8">
-              <div className="overflow-hidden bg-white rounded-xl border border-gray-200">
-                <div className="p-6 flex justify-between items-center border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-800">Generated Schedule</h2>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={downloadSchedule}
-                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      <Download className="w-4 h-4" />
-                      Download
-                    </button>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Day</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Person 1</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Person 2</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {schedule.entries.map((entry, index) => (
-                        <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Day {entry.day}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Room {entry.room}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{entry.faculty.name}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{entry.staff.name}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white p-6 rounded-xl border border-gray-200">
-                  <h3 className="text-lg font-semibold mb-4 text-gray-800">Faculty Duty Count</h3>
-                  <div className="space-y-3">
-                    {schedule.facultyDuties.map((duty, index) => (
-                      <div key={index} className="flex justify-between items-center p-3 rounded-lg bg-gray-50/50">
-                        <span className="text-gray-700 font-medium">{duty.name}</span>
-                        <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                          {duty.count} duties
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-xl border border-gray-200">
-                  <h3 className="text-lg font-semibold mb-4 text-gray-800">Staff Duty Count</h3>
-                  <div className="space-y-3">
-                    {schedule.staffDuties.map((duty, index) => (
-                      <div key={index} className="flex justify-between items-center p-3 rounded-lg bg-gray-50/50">
-                        <span className="text-gray-700 font-medium">{duty.name}</span>
-                        <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
-                          {duty.count} duties
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <ScheduleDisplay schedule={schedule} />
           )}
         </div>
       </div>
