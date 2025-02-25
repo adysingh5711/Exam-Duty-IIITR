@@ -15,6 +15,9 @@ function App() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Clear previous file
+    event.target.value = '';
+
     setFileName(file.name);
 
     const reader = new FileReader();
@@ -152,7 +155,11 @@ function App() {
 
           <div className="flex justify-center mb-8">
             <button
-              onClick={isGenerated ? regenerateSchedule : () => {
+              onClick={() => {
+                if (faculty.length === 0 || staff.length === 0) {
+                  alert('Please upload a file first!');
+                  return;
+                }
                 const generatedSchedule = generateSchedule(faculty, staff);
                 setSchedule(generatedSchedule);
                 setIsGenerated(true);
