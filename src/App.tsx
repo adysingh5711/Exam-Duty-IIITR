@@ -62,16 +62,98 @@ function App() {
 
     const wb = XLSX.utils.book_new();
 
-    // Schedule sheet
-    const scheduleWs = XLSX.utils.json_to_sheet(
-      schedule.entries.map(entry => ({
-        Day: entry.day,
-        Room: entry.room,
-        Faculty: entry.faculty.name,
-        Staff: entry.staff.name
-      }))
-    );
-    XLSX.utils.book_append_sheet(wb, scheduleWs, 'Schedule');
+    // Create new worksheet with the same structure as the image
+    const ws = XLSX.utils.aoa_to_sheet([]);
+
+    // Set column widths
+    const columnWidths = [
+      { wch: 20 },  // Date&Day/Classroom column
+      { wch: 12 },  // Day 1
+      { wch: 12 },  // Day 2
+      { wch: 12 },  // Day 3
+      { wch: 12 },  // Day 4
+      { wch: 12 },  // Day 5
+      { wch: 12 },  // Day 6
+    ];
+    ws['!cols'] = columnWidths;
+
+    // Function to get cell reference
+    const getCellRef = (r: number, c: number): string => {
+      const col = String.fromCharCode(65 + c); // A, B, C, etc.
+      return `${col}${r + 1}`;
+    };
+
+    // Header row with merged day cells
+    for (let col = 1; col <= 6; col++) {
+      const cellRef = getCellRef(0, col);
+      ws[cellRef] = { t: 's', v: `Day ${col}` };
+      // No cell_set_style in XLSX, use cell style directly
+      ws[cellRef].s = { alignment: { horizontal: 'center' } };
+    }
+
+    // Day names row (Monday - Saturday)
+    const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    for (let col = 1; col <= 6; col++) {
+      const cellRef = getCellRef(1, col);
+      ws[cellRef] = { t: 's', v: dayNames[col - 1] };
+      // No cell_set_style in XLSX, use cell style directly
+      ws[cellRef].s = { alignment: { horizontal: 'center' } };
+    }
+
+    // First column with Room labels
+    ws[getCellRef(0, 0)] = { t: 's', v: 'Date&Day/Classroom' };
+    for (let room = 1; room <= 11; room++) {
+      const cellRef = getCellRef(room * 2, 0);
+      ws[cellRef] = { t: 's', v: `Room ${room}` };
+      // Merge the room cells vertically to span 2 rows
+      ws['!merges'] = ws['!merges'] || [];
+      ws['!merges'].push({
+        s: { r: room * 2, c: 0 },
+        e: { r: room * 2 + 1, c: 0 }
+      });
+    }
+
+    // Fill in data for each room, day and person
+    for (let day = 1; day <= 6; day++) {
+      for (let room = 1; room <= 11; room++) {
+        // Find the entry for this day and room
+        const entry = schedule.entries.find(e => e.day === day && e.room === room);
+
+        if (entry) {
+          // Faculty row (first row for each room)
+          const facultyCellRef = getCellRef(room * 2, day);
+          ws[facultyCellRef] = { t: 's', v: entry.faculty.name };
+
+          // Staff row (second row for each room)
+          const staffCellRef = getCellRef(room * 2 + 1, day);
+          ws[staffCellRef] = { t: 's', v: entry.staff.name };
+        }
+      }
+    }
+
+    // Set the range for the worksheet
+    ws['!ref'] = `A1:G${11 * 2 + 2}`;
+
+    // Add borders to all cells
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let row = range.s.r; row <= range.e.r; row++) {
+      for (let col = range.s.c; col <= range.e.c; col++) {
+        const cellRef = getCellRef(row, col);
+        if (ws[cellRef]) {
+          ws[cellRef].s = {
+            ...ws[cellRef].s,
+            border: {
+              top: { style: 'thin', color: { rgb: '000000' } },
+              bottom: { style: 'thin', color: { rgb: '000000' } },
+              left: { style: 'thin', color: { rgb: '000000' } },
+              right: { style: 'thin', color: { rgb: '000000' } }
+            }
+          };
+        }
+      }
+    }
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Examination Schedule');
 
     // Duty counts sheet
     const dutyCounts = [
