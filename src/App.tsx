@@ -49,7 +49,7 @@ function App() {
     if (!schedule) return;
 
     const wb = XLSX.utils.book_new();
-    
+
     // Schedule sheet
     const scheduleWs = XLSX.utils.json_to_sheet(
       schedule.entries.map(entry => ({
@@ -81,12 +81,12 @@ function App() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8">
       <div className="max-w-6xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-          <h1 className="text-4xl font-bold text-gray-800 mb-8 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Examination Schedule Generator
+          <h1 className="text-4xl font-bold text-gray-800 mb-8 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent text-center leading-relaxed">
+            Examination Duty Schedule Generator
           </h1>
 
           <div className="mb-8">
-            <label 
+            <label
               className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-xl cursor-pointer bg-gray-50/50 hover:bg-gray-50 transition-all duration-300 border-gray-300/50 hover:border-blue-400/50"
             >
               <div className="flex flex-col items-center justify-center pt-5 pb-6">
