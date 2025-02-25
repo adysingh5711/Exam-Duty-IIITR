@@ -1,29 +1,33 @@
 import React, { useState } from 'react';
-import { Schedule } from '../types';
+import { Schedule, ScheduleEntry } from '../types';
 
-const ScheduleDisplay = ({ schedule }) => {
-    const [selectedDay, setSelectedDay] = useState(1);
-    const [showStats, setShowStats] = useState(false);
+interface ScheduleDisplayProps {
+    schedule: Schedule;
+}
 
-    const days = Array.from(new Set(schedule.entries.map(entry => entry.day))).sort((a, b) => a - b);
-    const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule }) => {
+    const [selectedDay, setSelectedDay] = useState<number>(1);
+    const [showStats, setShowStats] = useState<boolean>(false);
+
+    const days: number[] = Array.from(new Set(schedule.entries.map((entry: ScheduleEntry) => entry.day))) as number[];
+    const dayNames: string[] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
     // Group entries by day and room
-    const getEntriesForDay = (day) => {
+    const getEntriesForDay = (day: number): ScheduleEntry[] => {
         return schedule.entries
-            .filter(entry => entry.day === day)
-            .sort((a, b) => a.room - b.room);
+            .filter((entry: ScheduleEntry) => entry.day === day)
+            .sort((a: ScheduleEntry, b: ScheduleEntry) => a.room - b.room);
     };
 
-    const currentEntries = getEntriesForDay(selectedDay);
+    const currentEntries: ScheduleEntry[] = getEntriesForDay(selectedDay);
 
     // Calculate duty distribution stats
     const calculateStats = () => {
         const facultyStats = schedule.facultyDuties;
         const staffStats = schedule.staffDuties;
 
-        const facultyAvg = facultyStats.reduce((sum, item) => sum + item.count, 0) / facultyStats.length;
-        const staffAvg = staffStats.reduce((sum, item) => sum + item.count, 0) / staffStats.length;
+        const facultyAvg = facultyStats.reduce((sum: number, item: { count: number }) => sum + item.count, 0) / facultyStats.length;
+        const staffAvg = staffStats.reduce((sum: number, item: { count: number }) => sum + item.count, 0) / staffStats.length;
 
         return {
             facultyAvg: facultyAvg.toFixed(2),
@@ -45,7 +49,7 @@ const ScheduleDisplay = ({ schedule }) => {
 
             {/* Day selector tabs */}
             <div className="flex mb-4 overflow-x-auto">
-                {days.map((day, index) => (
+                {days.map((day: number, index: number) => (
                     <button
                         key={day}
                         onClick={() => setSelectedDay(day)}
@@ -73,7 +77,7 @@ const ScheduleDisplay = ({ schedule }) => {
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {currentEntries.map((entry) => (
+                        {currentEntries.map((entry: ScheduleEntry) => (
                             <tr key={`${entry.day}-${entry.room}`} className="hover:bg-gray-50">
                                 <td className="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">
                                     Room {entry.room}
@@ -81,7 +85,7 @@ const ScheduleDisplay = ({ schedule }) => {
                                 <td className="px-6 py-4">
                                     <div className="flex flex-col sm:flex-row sm:gap-6">
                                         <div className="flex items-center mb-2 sm:mb-0">
-                                            <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-800 font-semibold mr-3">
+                                            <div className={`h-8 w-8 rounded-full ${entry.faculty.type === 'faculty' ? 'bg-blue-500' : 'bg-green-400'} flex items-center justify-center text-white font-semibold mr-3`}>
                                                 {entry.faculty.name.charAt(0)}
                                             </div>
                                             <div>
@@ -91,7 +95,7 @@ const ScheduleDisplay = ({ schedule }) => {
                                         </div>
 
                                         <div className="flex items-center">
-                                            <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center text-green-800 font-semibold mr-3">
+                                            <div className={`h-8 w-8 rounded-full ${entry.staff.type === 'staff' ? 'bg-green-500' : 'bg-blue-500'} flex items-center justify-center text-white font-semibold mr-3`}>
                                                 {entry.staff.name.charAt(0)}
                                             </div>
                                             <div>
@@ -147,7 +151,7 @@ const ScheduleDisplay = ({ schedule }) => {
                             </div>
 
                             <div className="space-y-2 mt-3">
-                                {stats.facultyStats.map((item) => (
+                                {stats.facultyStats.map((item: { name: string; count: number }) => (
                                     <div key={item.name} className="flex items-center">
                                         <div className="w-1/3 text-sm font-medium truncate pr-2">{item.name}</div>
                                         <div className="w-2/3 flex items-center">
@@ -174,7 +178,7 @@ const ScheduleDisplay = ({ schedule }) => {
                             </div>
 
                             <div className="space-y-2 mt-3">
-                                {stats.staffStats.map((item) => (
+                                {stats.staffStats.map((item: { name: string; count: number }) => (
                                     <div key={item.name} className="flex items-center">
                                         <div className="w-1/3 text-sm font-medium truncate pr-2">{item.name}</div>
                                         <div className="w-2/3 flex items-center">
@@ -196,7 +200,7 @@ const ScheduleDisplay = ({ schedule }) => {
             )}
 
             <div className="text-sm text-gray-500 mt-4">
-                <p>Note: The schedule has been optimized to balance duties fairly across all staff and faculty members.</p>
+                <p>Note: The schedule has been optimized randomly to balance duties fairly across all staff and faculty members.</p>
             </div>
         </div>
     );
