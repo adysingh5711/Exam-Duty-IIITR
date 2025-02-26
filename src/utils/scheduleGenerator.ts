@@ -6,6 +6,13 @@ export function generateSchedule(faculty: Person[], staff: Person[]): Schedule {
   const schedule: ScheduleEntry[] = [];
   const dutyCounter = new Map<string, { count: number; type: 'faculty' | 'staff' }>();
 
+  // Store original indices for seniority reference
+  const facultyIndices = new Map<string, number>();
+  faculty.forEach((f, index) => facultyIndices.set(f.name, index));
+
+  const staffIndices = new Map<string, number>();
+  staff.forEach((s, index) => staffIndices.set(s.name, index));
+
   // Create combined people pool for random assignment
   const allPeople = [...faculty, ...staff];
 
@@ -105,8 +112,40 @@ export function generateSchedule(faculty: Person[], staff: Person[]): Schedule {
 
       // Make sure we found two people
       if (selectedPeople.length === 2) {
+        // Sort people by seniority if they have the same type
+        const person1 = selectedPeople[0];
+        const person2 = selectedPeople[1];
+
+        // Get the types of the two people
+        const type1 = dutyCounter.get(person1.name)!.type;
+        const type2 = dutyCounter.get(person2.name)!.type;
+
+        // Arrange by seniority if both are faculty or both are staff
+        let faculty, staff;
+
+        if (type1 === 'faculty' && type2 === 'faculty') {
+          // Both are faculty, sort by faculty indices (lower index = higher seniority)
+          const idx1 = facultyIndices.get(person1.name)!;
+          const idx2 = facultyIndices.get(person2.name)!;
+
+          faculty = idx1 < idx2 ? person1 : person2;
+          staff = idx1 < idx2 ? person2 : person1;
+        } else if (type1 === 'staff' && type2 === 'staff') {
+          // Both are staff, sort by staff indices (lower index = higher seniority)
+          const idx1 = staffIndices.get(person1.name)!;
+          const idx2 = staffIndices.get(person2.name)!;
+
+          // For two staff, put higher seniority in faculty position
+          faculty = idx1 < idx2 ? person1 : person2;
+          staff = idx1 < idx2 ? person2 : person1;
+        } else {
+          // One faculty, one staff - faculty always goes in faculty position
+          faculty = type1 === 'faculty' ? person1 : person2;
+          staff = type1 === 'faculty' ? person2 : person1;
+        }
+
         // Mark as assigned for today
-        selectedPeople.forEach(person => {
+        [faculty, staff].forEach(person => {
           assignedPeopleForDay.add(person.name);
 
           // Update assignment history
@@ -118,8 +157,8 @@ export function generateSchedule(faculty: Person[], staff: Person[]): Schedule {
 
         // Add to schedule
         schedule.push({
-          faculty: selectedPeople[0], // First person is always faculty now
-          staff: selectedPeople[1],   // Second person can be either faculty or staff
+          faculty,
+          staff,
           room: room,
           day: day
         });
@@ -128,7 +167,15 @@ export function generateSchedule(faculty: Person[], staff: Person[]): Schedule {
   }
 
   // Balance schedule to ensure everyone has at least the minimum number of duties
-  balanceSchedule(schedule, dutyCounter, personAssignments, maxDutiesPerPerson, minDutiesPerPerson);
+  balanceSchedule(
+    schedule,
+    dutyCounter,
+    personAssignments,
+    maxDutiesPerPerson,
+    minDutiesPerPerson,
+    facultyIndices,
+    staffIndices
+  );
 
   // Convert duty counter to arrays
   const facultyDuties: DutyCount[] = Array.from(dutyCounter.entries())
@@ -150,7 +197,9 @@ function balanceSchedule(
   dutyCounter: Map<string, { count: number; type: 'faculty' | 'staff' }>,
   personAssignments: Map<string, { day: number, room: number }[]>,
   maxDutiesPerPerson: number,
-  minDutiesPerPerson: number
+  minDutiesPerPerson: number,
+  facultyIndices: Map<string, number>,
+  staffIndices: Map<string, number>
 ): void {
   // Get all people sorted by duty count (highest to lowest)
   const allPeopleByDuties = Array.from(dutyCounter.entries())
@@ -240,6 +289,9 @@ function balanceSchedule(
 
             swapsPerformed++;
             neededDuties--;
+
+            // Re-check seniority after the swap - make sure the order is correct
+            enforcePositionBySeniority(entry, facultyIndices, staffIndices, dutyCounter);
           }
         }
       }
@@ -320,9 +372,62 @@ function balanceSchedule(
           personAssignments.get(underworkedName)!.push({ day: entry.day, room: entry.room });
 
           swapsPerformed++;
+
+          // Re-check seniority after the swap - make sure the order is correct
+          enforcePositionBySeniority(entry, facultyIndices, staffIndices, dutyCounter);
           break;
         }
       }
     }
   }
+
+  // Final pass to ensure all entries have correct seniority ordering
+  schedule.forEach(entry => {
+    enforcePositionBySeniority(entry, facultyIndices, staffIndices, dutyCounter);
+  });
+}
+
+// Helper function to enforce seniority ordering in a schedule entry
+function enforcePositionBySeniority(
+  entry: ScheduleEntry,
+  facultyIndices: Map<string, number>,
+  staffIndices: Map<string, number>,
+  dutyCounter: Map<string, { count: number; type: 'faculty' | 'staff' }>
+): void {
+  const faculty = entry.faculty;
+  const staff = entry.staff;
+
+  // Get types from duty counter
+  const facultyType = dutyCounter.get(faculty.name)!.type;
+  const staffType = dutyCounter.get(staff.name)!.type;
+
+  // If both are faculty, ensure higher seniority is in the faculty position
+  if (facultyType === 'faculty' && staffType === 'faculty') {
+    const facultyIdx = facultyIndices.get(faculty.name)!;
+    const staffIdx = facultyIndices.get(staff.name)!;
+
+    // If staff has higher seniority (lower index), swap positions
+    if (staffIdx < facultyIdx) {
+      entry.faculty = staff;
+      entry.staff = faculty;
+    }
+  }
+  // If both are staff, ensure higher seniority is in the faculty position
+  else if (facultyType === 'staff' && staffType === 'staff') {
+    const facultyIdx = staffIndices.get(faculty.name)!;
+    const staffIdx = staffIndices.get(staff.name)!;
+
+    // If staff has higher seniority (lower index), swap positions
+    if (staffIdx < facultyIdx) {
+      entry.faculty = staff;
+      entry.staff = faculty;
+    }
+  }
+  // If mixed types, faculty type should be in faculty position
+  else if (facultyType === 'staff' && staffType === 'faculty') {
+    // Swap them as faculty should be in faculty position
+    entry.faculty = staff;
+    entry.staff = faculty;
+  }
+  // If faculty is in faculty position and staff is in staff position, no change needed
 }
