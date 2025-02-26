@@ -29,13 +29,16 @@ export function generateSchedule(faculty: Person[], staff: Person[]): Schedule {
 
     // For each room on the current day
     for (let room = 1; room <= rooms; room++) {
-      // We'll assign two people to each room, no restriction on staff/faculty
+      // We'll assign two people to each room, first a faculty member, then any staff/faculty
       let selectedPeople: Person[] = [];
 
       // Try to fill positions from eligible people pool
       for (let position = 0; position < 2; position++) {
+        // Modified: For first position, only select from faculty members
+        const candidatePool = position === 0 ? faculty : allPeople;
+
         // Filter eligible people (not assigned today, not assigned to same room yesterday, not reached max duties)
-        const eligiblePeople = allPeople.filter(p => {
+        const eligiblePeople = candidatePool.filter(p => {
           // Not already selected for this room
           if (selectedPeople.some(selected => selected.name === p.name)) return false;
 
@@ -71,7 +74,9 @@ export function generateSchedule(faculty: Person[], staff: Person[]): Schedule {
           selectedPeople.push(peopleWithMinDuties[randomIndex]);
         } else {
           // Fallback: take anyone not assigned today, prioritizing those with fewer duties
-          const unassignedToday = allPeople.filter(p => !assignedPeopleForDay.has(p.name));
+          // For first position, still restrict to faculty members only
+          const candidatePoolFallback = position === 0 ? faculty : allPeople;
+          const unassignedToday = candidatePoolFallback.filter(p => !assignedPeopleForDay.has(p.name));
 
           if (unassignedToday.length > 0) {
             const sortedUnassigned = [...unassignedToday].sort((a, b) =>
@@ -81,7 +86,8 @@ export function generateSchedule(faculty: Person[], staff: Person[]): Schedule {
             selectedPeople.push(sortedUnassigned[0]);
           } else {
             // Last resort: take person with fewest duties
-            const sortedAll = [...allPeople].sort((a, b) =>
+            // For first position, still restrict to faculty members only
+            const sortedAll = [...candidatePoolFallback].sort((a, b) =>
               dutyCounter.get(a.name)!.count - dutyCounter.get(b.name)!.count
             );
 
@@ -112,8 +118,8 @@ export function generateSchedule(faculty: Person[], staff: Person[]): Schedule {
 
         // Add to schedule
         schedule.push({
-          faculty: selectedPeople[0], // We're no longer enforcing faculty/staff roles
-          staff: selectedPeople[1],   // These property names are kept for compatibility
+          faculty: selectedPeople[0], // First person is always faculty now
+          staff: selectedPeople[1],   // Second person can be either faculty or staff
           room: room,
           day: day
         });
@@ -205,7 +211,10 @@ function balanceSchedule(
             a.day === entry.day - 1 && a.room === entry.room
           );
 
-          if (!isAssignedOnDay && !wasInSameRoomYesterday) {
+          // Only swap if we maintain the faculty requirement (non-faculty can't replace faculty)
+          const canReplaceOverworked = !isOverworkedFaculty || underworkedType === 'faculty';
+
+          if (!isAssignedOnDay && !wasInSameRoomYesterday && canReplaceOverworked) {
             // Perform swap
             if (isOverworkedFaculty) {
               entry.faculty = { name: underworkedName, type: underworkedType };
@@ -283,7 +292,10 @@ function balanceSchedule(
           a.day === entry.day - 1 && a.room === entry.room
         );
 
-        if (!isAssignedOnDay && !wasInSameRoomYesterday) {
+        // Only swap if we maintain the faculty requirement (non-faculty can't replace faculty)
+        const canReplaceOverworked = !isOverworkedFaculty || underworkedType === 'faculty';
+
+        if (!isAssignedOnDay && !wasInSameRoomYesterday && canReplaceOverworked) {
           // Perform swap
           if (isOverworkedFaculty) {
             entry.faculty = { name: underworkedName, type: underworkedType };
