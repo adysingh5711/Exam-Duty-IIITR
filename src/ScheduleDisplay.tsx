@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Schedule, ScheduleEntry } from '../types';
+import { Schedule, ScheduleEntry } from './types';
 
 interface ScheduleDisplayProps {
     schedule: Schedule;
