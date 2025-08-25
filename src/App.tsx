@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
-import { FileUp, Download, RefreshCw } from 'lucide-react';
+import { FileUp, Download, RefreshCw, Plus, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { Person, Schedule } from './types';
+import { Person, Schedule, FacultyConstraint } from './types';
 import { generateSchedule } from './utils/scheduleGenerator';
 import ScheduleDisplay from './ScheduleDisplay';
 
@@ -11,6 +11,13 @@ function App() {
   const [staff, setStaff] = useState<Person[]>([]);
   const [isGenerated, setIsGenerated] = useState<boolean>(false);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [constraints, setConstraints] = useState<FacultyConstraint[]>([]);
+  const [days, setDays] = useState<number>(6);
+  const [rooms, setRooms] = useState<number>(11);
+
+  // Constraint form state
+  const [newConstraintFaculty, setNewConstraintFaculty] = useState<string>('');
+  const [newConstraintDay, setNewConstraintDay] = useState<number>(1);
 
   const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -164,11 +171,60 @@ function App() {
     XLSX.writeFile(wb, 'examination-schedule.xlsx');
   }, [schedule]);
 
+  const addConstraint = useCallback(() => {
+    if (!newConstraintFaculty.trim()) {
+      alert('Please select a faculty member');
+      return;
+    }
+
+    if (newConstraintDay < 1 || newConstraintDay > days) {
+      alert(`Day must be between 1 and ${days}`);
+      return;
+    }
+
+    // Check if faculty exists in the loaded list
+    const facultyExists = faculty.some(f => f.name === newConstraintFaculty);
+    if (!facultyExists) {
+      alert('Selected faculty member not found in the uploaded list');
+      return;
+    }
+
+    // Check for duplicate constraints
+    const duplicate = constraints.some(c =>
+      c.facultyName === newConstraintFaculty && c.day === newConstraintDay
+    );
+    if (duplicate) {
+      alert('This constraint already exists');
+      return;
+    }
+
+    const newConstraint: FacultyConstraint = {
+      facultyName: newConstraintFaculty,
+      day: newConstraintDay
+    };
+
+    setConstraints(prev => [...prev, newConstraint]);
+    setNewConstraintFaculty('');
+    setNewConstraintDay(1);
+  }, [newConstraintFaculty, newConstraintDay, days, faculty, constraints]);
+
+  const removeConstraint = useCallback((index: number) => {
+    setConstraints(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
   const generateAndSetSchedule = useCallback(() => {
-    const generatedSchedule = generateSchedule(faculty, staff);
+    const constraintMap: { [day: number]: string[] } = {};
+    constraints.forEach(constraint => {
+      if (!constraintMap[constraint.day]) {
+        constraintMap[constraint.day] = [];
+      }
+      constraintMap[constraint.day].push(constraint.facultyName);
+    });
+
+    const generatedSchedule = generateSchedule(faculty, staff, constraintMap, days, rooms);
     setSchedule(generatedSchedule);
     setIsGenerated(true);
-  }, [faculty, staff]);
+  }, [faculty, staff, constraints, days, rooms]);
 
   console.log('Faculty:', faculty);
   console.log('Staff:', staff);
@@ -195,6 +251,7 @@ function App() {
                     setStaff([]);
                     setSchedule(null);
                     setIsGenerated(false);
+                    setConstraints([]);
                   }}
                   className="absolute -right-2 -top-2 p-2 bg-red-400 rounded-full hover:bg-red-500 transition-colors"
                 >
@@ -234,6 +291,92 @@ function App() {
             </label>
           </div>
 
+          {/* Configuration Panel */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Schedule Configuration</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Number of Days</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={days}
+                    onChange={(e) => setDays(parseInt(e.target.value) || 6)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Number of Rooms</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={rooms}
+                    onChange={(e) => setRooms(parseInt(e.target.value) || 11)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Faculty Day Fixing</h3>
+              {faculty.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="flex gap-2">
+                    <select
+                      value={newConstraintFaculty}
+                      onChange={(e) => setNewConstraintFaculty(e.target.value)}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select Faculty</option>
+                      {faculty.map((f, index) => (
+                        <option key={index} value={f.name}>{f.name}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      min="1"
+                      max={days}
+                      value={newConstraintDay}
+                      onChange={(e) => setNewConstraintDay(parseInt(e.target.value) || 1)}
+                      placeholder="Day"
+                      className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      onClick={addConstraint}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {constraints.length > 0 && (
+                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                      {constraints.map((constraint, index) => (
+                        <div key={index} className="flex items-center justify-between bg-white p-2 rounded border">
+                          <span className="text-sm text-gray-700">
+                            {constraint.facultyName} - Day {constraint.day}
+                          </span>
+                          <button
+                            onClick={() => removeConstraint(index)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">Upload faculty list first to add constraints</p>
+              )}
+            </div>
+          </div>
+
           <div className="flex justify-center mb-8">
             <button
               onClick={() => {
@@ -241,9 +384,7 @@ function App() {
                   alert('Please upload a file first!');
                   return;
                 }
-                const generatedSchedule = generateSchedule(faculty, staff);
-                setSchedule(generatedSchedule);
-                setIsGenerated(true);
+                generateAndSetSchedule();
               }}
               className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
             >

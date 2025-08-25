@@ -3,10 +3,10 @@ import { Person, Schedule, ScheduleEntry, DutyCount } from '../types';
 export function generateSchedule(
   faculty: Person[],
   staff: Person[],
-  preAssignedFaculty: { [day: number]: string[] } = {}
+  preAssignedFaculty: { [day: number]: string[] } = {},
+  days: number = 6,
+  rooms: number = 11
 ): Schedule {
-  const days = 6;
-  const rooms = 11;
   const schedule: ScheduleEntry[] = [];
   const dutyCounter = new Map<string, { count: number; type: 'faculty' | 'staff' }>();
 

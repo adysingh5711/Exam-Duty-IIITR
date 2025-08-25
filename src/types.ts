@@ -20,3 +20,8 @@ export interface Schedule {
   facultyDuties: DutyCount[];
   staffDuties: DutyCount[];
 }
+
+export interface FacultyConstraint {
+  facultyName: string;
+  day: number;
+}
