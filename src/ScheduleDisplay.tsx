@@ -10,7 +10,7 @@ const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule }) => {
     const [showStats, setShowStats] = useState<boolean>(false);
 
     const days: number[] = Array.from(new Set(schedule.entries.map((entry: ScheduleEntry) => entry.day))) as number[];
-    const dayNames: string[] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    // Remove weekday names - use Day 1, Day 2, etc. instead
 
     // Group entries by day and room
     const getEntriesForDay = (day: number): ScheduleEntry[] => {
@@ -49,7 +49,7 @@ const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule }) => {
 
             {/* Day selector tabs */}
             <div className="flex mb-4 overflow-x-auto">
-                {days.map((day: number, index: number) => (
+                {days.map((day: number) => (
                     <button
                         key={day}
                         onClick={() => setSelectedDay(day)}
@@ -58,7 +58,7 @@ const ScheduleDisplay: React.FC<ScheduleDisplayProps> = ({ schedule }) => {
                             : "border-transparent hover:border-gray-300"
                             }`}
                     >
-                        {dayNames[index % dayNames.length]}
+                        Day {day}
                     </button>
                 ))}
             </div>

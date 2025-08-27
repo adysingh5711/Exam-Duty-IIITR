@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { FileUp, Download, RefreshCw, Plus, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Person, Schedule, FacultyConstraint } from './types';
-import { generateSchedule } from './utils/scheduleGenerator';
+import { generateSchedule } from './utils/examDutyScheduleGenerator';
 import ScheduleDisplay from './ScheduleDisplay';
 
 function App() {
@@ -10,6 +10,7 @@ function App() {
   const [faculty, setFaculty] = useState<Person[]>([]);
   const [staff, setStaff] = useState<Person[]>([]);
   const [isGenerated, setIsGenerated] = useState<boolean>(false);
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const [constraints, setConstraints] = useState<FacultyConstraint[]>([]);
   const [days, setDays] = useState<number>(6);
@@ -49,9 +50,9 @@ function App() {
 
       setFaculty(newFaculty);
       setStaff(newStaff);
-      const generatedSchedule = generateSchedule(newFaculty, newStaff);
-      setSchedule(generatedSchedule);
-      setIsGenerated(true);
+      // Clear any existing schedule to force regeneration with current constraints
+      setSchedule(null);
+      setIsGenerated(false);
     };
     reader.readAsArrayBuffer(file);
   }, []);
@@ -83,7 +84,7 @@ function App() {
       return `${col}${r + 1}`;
     };
 
-    // Header row with merged day cells
+    // Header row with day labels
     for (let col = 1; col <= 6; col++) {
       const cellRef = getCellRef(0, col);
       ws[cellRef] = { t: 's', v: `Day ${col}` };
@@ -91,25 +92,16 @@ function App() {
       ws[cellRef].s = { alignment: { horizontal: 'center' } };
     }
 
-    // Day names row (Monday - Saturday)
-    const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    for (let col = 1; col <= 6; col++) {
-      const cellRef = getCellRef(1, col);
-      ws[cellRef] = { t: 's', v: dayNames[col - 1] };
-      // No cell_set_style in XLSX, use cell style directly
-      ws[cellRef].s = { alignment: { horizontal: 'center' } };
-    }
-
-    // First column with Room labels
+    // First column with Room labels - adjusted for removed weekday row
     ws[getCellRef(0, 0)] = { t: 's', v: 'Date&Day/Classroom' };
     for (let room = 1; room <= 11; room++) {
-      const cellRef = getCellRef(room * 2, 0);
+      const cellRef = getCellRef(room * 2 - 1, 0); // Adjusted: -1 because we removed weekday row
       ws[cellRef] = { t: 's', v: `Room ${room}` };
       // Merge the room cells vertically to span 2 rows
       ws['!merges'] = ws['!merges'] || [];
       ws['!merges'].push({
-        s: { r: room * 2, c: 0 },
-        e: { r: room * 2 + 1, c: 0 }
+        s: { r: room * 2 - 1, c: 0 }, // Adjusted: -1
+        e: { r: room * 2, c: 0 }      // Adjusted: no change needed here
       });
     }
 
@@ -120,19 +112,19 @@ function App() {
         const entry = schedule.entries.find(e => e.day === day && e.room === room);
 
         if (entry) {
-          // Faculty row (first row for each room)
-          const facultyCellRef = getCellRef(room * 2, day);
+          // Faculty row (first row for each room) - adjusted for removed weekday row
+          const facultyCellRef = getCellRef(room * 2 - 1, day); // Adjusted: -1
           ws[facultyCellRef] = { t: 's', v: entry.faculty.name };
 
-          // Staff row (second row for each room)
-          const staffCellRef = getCellRef(room * 2 + 1, day);
+          // Staff row (second row for each room) - adjusted for removed weekday row
+          const staffCellRef = getCellRef(room * 2, day);        // Adjusted: no change needed
           ws[staffCellRef] = { t: 's', v: entry.staff.name };
         }
       }
     }
 
-    // Set the range for the worksheet
-    ws['!ref'] = `A1:G${11 * 2 + 2}`;
+    // Set the range for the worksheet - adjusted for removed weekday row
+    ws['!ref'] = `A1:G${11 * 2 + 1}`; // Changed from +2 to +1
 
     // Add borders to all cells
     const range = XLSX.utils.decode_range(ws['!ref']);
@@ -173,7 +165,7 @@ function App() {
 
   const addConstraint = useCallback(() => {
     if (!newConstraintFaculty.trim()) {
-      alert('Please select a faculty member');
+      alert('Please select a person');
       return;
     }
 
@@ -182,10 +174,11 @@ function App() {
       return;
     }
 
-    // Check if faculty exists in the loaded list
-    const facultyExists = faculty.some(f => f.name === newConstraintFaculty);
-    if (!facultyExists) {
-      alert('Selected faculty member not found in the uploaded list');
+    // Check if person exists in the loaded lists
+    const personExists = faculty.some(f => f.name === newConstraintFaculty) ||
+      staff.some(s => s.name === newConstraintFaculty);
+    if (!personExists) {
+      alert('Selected person not found in the uploaded lists');
       return;
     }
 
@@ -199,7 +192,7 @@ function App() {
     }
 
     const newConstraint: FacultyConstraint = {
-      facultyName: newConstraintFaculty,
+      facultyName: newConstraintFaculty, // Note: This name is kept for compatibility but can be any person
       day: newConstraintDay
     };
 
@@ -212,19 +205,56 @@ function App() {
     setConstraints(prev => prev.filter((_, i) => i !== index));
   }, []);
 
-  const generateAndSetSchedule = useCallback(() => {
-    const constraintMap: { [day: number]: string[] } = {};
-    constraints.forEach(constraint => {
-      if (!constraintMap[constraint.day]) {
-        constraintMap[constraint.day] = [];
-      }
-      constraintMap[constraint.day].push(constraint.facultyName);
-    });
+  const generateAndSetSchedule = useCallback(async () => {
+    if (isGenerating) return; // Prevent double-clicks
 
-    const generatedSchedule = generateSchedule(faculty, staff, constraintMap, days, rooms);
-    setSchedule(generatedSchedule);
-    setIsGenerated(true);
-  }, [faculty, staff, constraints, days, rooms]);
+    try {
+      setIsGenerating(true);
+      console.log('Starting schedule generation...');
+      console.log('Faculty count:', faculty.length);
+      console.log('Staff count:', staff.length);
+      console.log('Constraints:', constraints);
+      console.log('Days:', days, 'Rooms:', rooms);
+
+      // Clear previous schedule immediately for better UX
+      setSchedule(null);
+
+      const constraintMap: { [day: number]: string[] } = {};
+      constraints.forEach(constraint => {
+        if (!constraintMap[constraint.day]) {
+          constraintMap[constraint.day] = [];
+        }
+        constraintMap[constraint.day].push(constraint.facultyName);
+      });
+
+      console.log('Constraint map:', constraintMap);
+
+      // Add randomization seed for better variety on regenerate - seed logged for debugging
+      const randomSeed = Math.random();
+      const timestamp = Date.now();
+      console.log('Generation seed:', randomSeed, 'at', timestamp);
+
+      // Enhanced loading experience with progressive feedback
+      await new Promise(resolve => setTimeout(resolve, 120));
+
+      const generatedSchedule = generateSchedule(faculty, staff, constraintMap, days, rooms);
+
+      console.log('Schedule generated successfully:', generatedSchedule);
+
+      // Brief delay to show completion - better UX
+      await new Promise(resolve => setTimeout(resolve, 60));
+
+      setSchedule(generatedSchedule);
+      setIsGenerated(true);
+    } catch (error) {
+      console.error('Error generating schedule:', error);
+      alert(`Error generating schedule: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setSchedule(null);
+      setIsGenerated(false);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [faculty, staff, constraints, days, rooms, isGenerating]);
 
   console.log('Faculty:', faculty);
   console.log('Staff:', staff);
@@ -322,7 +352,7 @@ function App() {
             </div>
 
             <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Faculty Day Fixing</h3>
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Person Day Fixing</h3>
               {faculty.length > 0 ? (
                 <div className="space-y-4">
                   <div className="flex gap-2">
@@ -331,10 +361,17 @@ function App() {
                       onChange={(e) => setNewConstraintFaculty(e.target.value)}
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="">Select Faculty</option>
-                      {faculty.map((f, index) => (
-                        <option key={index} value={f.name}>{f.name}</option>
-                      ))}
+                      <option value="">Select Person</option>
+                      <optgroup label="Faculty">
+                        {faculty.map((f, index) => (
+                          <option key={`faculty-${index}`} value={f.name}>{f.name} (F)</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Staff">
+                        {staff.map((s, index) => (
+                          <option key={`staff-${index}`} value={s.name}>{s.name} (S)</option>
+                        ))}
+                      </optgroup>
                     </select>
                     <input
                       type="number"
@@ -386,10 +423,25 @@ function App() {
                 }
                 generateAndSetSchedule();
               }}
-              className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              disabled={isGenerating}
+              className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all duration-300 transform ${isGenerating
+                  ? 'bg-gray-400 cursor-not-allowed scale-95'
+                  : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 hover:scale-105 hover:shadow-lg active:scale-95'
+                } text-white shadow-md`}
             >
-              <RefreshCw className="w-5 h-5" />
-              {isGenerated ? 'Regenerate Schedule' : 'Generate Schedule'}
+              <RefreshCw className={`w-5 h-5 ${isGenerating ? 'animate-spin' : 'hover:rotate-12'} transition-transform duration-200`} />
+              {isGenerating ? (
+                <span className="flex items-center gap-2">
+                  Generating...
+                  <span className="flex gap-1">
+                    <span className="w-1 h-1 bg-white rounded-full animate-pulse" style={{ animationDelay: '0ms' }}></span>
+                    <span className="w-1 h-1 bg-white rounded-full animate-pulse" style={{ animationDelay: '150ms' }}></span>
+                    <span className="w-1 h-1 bg-white rounded-full animate-pulse" style={{ animationDelay: '300ms' }}></span>
+                  </span>
+                </span>
+              ) : (
+                isGenerated ? 'Regenerate Schedule' : 'Generate Schedule'
+              )}
             </button>
 
             {isGenerated && (
